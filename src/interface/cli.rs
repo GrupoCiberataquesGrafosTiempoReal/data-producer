@@ -3,7 +3,7 @@ use anyhow::Result;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-pub fn configure(files: &[PathBuf]) -> Result<Config> {
+pub fn configure(files: &[PathBuf], kafka_brokers: String, kafka_topic: String) -> Result<Config> {
     println!("\nAvailable files:\n");
 
     for (i, file) in files.iter().enumerate() {
@@ -24,13 +24,17 @@ pub fn configure(files: &[PathBuf]) -> Result<Config> {
     let confirm = ask_yes_no("Confirm and start? (y/n)", true)?;
 
     if !confirm {
-        return configure(files);
+        return configure(files, kafka_brokers, kafka_topic);
     }
+
+    println!();
 
     Ok(Config {
         file_index,
         batch_size,
         delay_ms,
+        kafka_brokers,
+        kafka_topic
     })
 }
 

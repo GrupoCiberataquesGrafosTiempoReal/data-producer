@@ -5,7 +5,8 @@ mod utils;
 use anyhow::{anyhow, Result};
 use std::env;
 use utils::file_utils::list_supported_files;
-use utils::readers::{process_csv, process_parquet};
+use utils::processors::{process_csv, process_parquet};
+use utils::producer::create_kafka_producer;
 
 fn main() -> Result<()> {
     dotenvy::dotenv().ok();
@@ -20,7 +21,13 @@ fn main() -> Result<()> {
             return Err(anyhow!("No CSV or Parquet files found"));
         }
 
-        let config = interface::cli::configure(&files)?;
+        let kafka_brokers = env::var("KAFKA_BROKERS")
+            .map_err(|_| anyhow!("KAFKA_BROKERS environment variable not set"))?;
+        
+        let kafka_topic = env::var("KAFKA_TOPIC")
+            .map_err(|_| anyhow!("KAFKA_TOPIC environment variable not set"))?;
+
+        let config = interface::cli::configure(&files, kafka_brokers, kafka_topic)?;
 
         let path = &files[config.file_index];
 
@@ -30,10 +37,12 @@ fn main() -> Result<()> {
             .to_string_lossy()
             .to_lowercase();
 
+        let producer = create_kafka_producer(&config)?;
+
         let should_restart = if extension == "parquet" {
-            process_parquet(path, &config)?
+            process_parquet(path, &config, producer)?
         } else {
-            process_csv(path, &config)?
+            process_csv(path, &config, producer)?
         };
 
         if !should_restart {
