@@ -1,13 +1,16 @@
-use anyhow::Result;
 use std::fs;
 use std::path::PathBuf;
 
-pub fn list_supported_files(folder: &str) -> Result<Vec<PathBuf>> {
+pub fn list_supported_files(files_dir: String) -> Vec<PathBuf> {
     let mut files = vec![];
 
-    for entry in fs::read_dir(folder)? {
-        let entry = entry?;
-        let path = entry.path();
+    if !PathBuf::from(&files_dir).is_dir() {
+        println!("Directory does not exist or is not a directory");
+        return files;
+    }
+
+    for entry in fs::read_dir(files_dir).unwrap() {
+        let path = entry.unwrap().path();
 
         if let Some(ext) = path.extension() {
             let ext = ext.to_string_lossy().to_lowercase();
@@ -20,5 +23,5 @@ pub fn list_supported_files(folder: &str) -> Result<Vec<PathBuf>> {
 
     files.sort();
 
-    Ok(files)
+    files
 }

@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::interface::interruption::interruption_requested;
 use crate::interface::summary::{create_summary, print_summary};
 use crate::utils::producer::publish_batch;
 use anyhow::Result;
@@ -7,14 +6,13 @@ use csv::StringRecord;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::{Field, Row};
 use std::fs::File;
-use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
-use rdkafka::producer::{BaseProducer};
+use rdkafka::producer::{FutureProducer};
 use serde_json::{Map, Value};
 
-pub fn process_csv(path: &Path, config: &Config, producer: BaseProducer) -> Result<bool> {
-    let mut reader = csv::Reader::from_path(path)?;
+pub async fn process_csv(config: &Config, producer: FutureProducer) -> Result<()> {
+    let mut reader = csv::Reader::from_path(config.file_path.clone())?;
 
     let headers = reader.headers()?.clone();
 
@@ -29,17 +27,23 @@ pub fn process_csv(path: &Path, config: &Config, producer: BaseProducer) -> Resu
         if batch.len() >= config.batch_size {
             batch_number += 1;
 
-            if handle_batch(batch_number, &batch, &producer, &config.kafka_topic)? {
-                return Ok(true);
+            if batch_number > 1 {
+                thread::sleep(Duration::from_millis(config.delay_ms as u64));
             }
 
-            batch.clear();
+            handle_batch(batch_number, &batch, &producer, &config.kafka_topic).await?;
 
-            thread::sleep(Duration::from_millis(config.delay_ms));
+            batch.clear();
         }
     }
 
-    Ok(false)
+    if !batch.is_empty() {
+        thread::sleep(Duration::from_millis(config.delay_ms as u64));
+        batch_number += 1;
+        handle_batch(batch_number, &batch, &producer, &config.kafka_topic).await?;
+    }
+
+    Ok(())
 }
 
 fn csv_record_to_json(headers: &StringRecord, record: &StringRecord) -> Value {
@@ -78,8 +82,8 @@ fn parse_csv_value(value: &str) -> Value {
     Value::String(v.to_string())
 }
 
-pub fn process_parquet(path: &Path, config: &Config, producer: BaseProducer) -> Result<bool> {
-    let file = File::open(path)?;
+pub async fn process_parquet(config: &Config, producer: FutureProducer) -> Result<()> {
+    let file = File::open(config.file_path.clone())?;
     let reader = SerializedFileReader::new(file)?;
     let iter = reader.get_row_iter(None)?;
 
@@ -94,17 +98,23 @@ pub fn process_parquet(path: &Path, config: &Config, producer: BaseProducer) -> 
         if batch.len() >= config.batch_size {
             batch_number += 1;
 
-            if handle_batch(batch_number, &batch, &producer, &config.kafka_topic)? {
-                return Ok(true);
+            if batch_number > 1 {
+                thread::sleep(Duration::from_millis(config.delay_ms as u64));
             }
 
-            batch.clear();
+            handle_batch(batch_number, &batch, &producer, &config.kafka_topic).await?;
 
-            thread::sleep(Duration::from_millis(config.delay_ms));
+            batch.clear();
         }
     }
 
-    Ok(false)
+    if !batch.is_empty() {
+        thread::sleep(Duration::from_millis(config.delay_ms as u64));
+        batch_number += 1;
+        handle_batch(batch_number, &batch, &producer, &config.kafka_topic).await?;
+    }
+
+    Ok(())
 }
 
 fn parquet_row_to_json(row: &Row) -> Value {
@@ -135,15 +145,15 @@ fn parquet_row_to_json(row: &Row) -> Value {
     Value::Object(map)
 }
 
-fn handle_batch(
+async fn handle_batch(
     batch_number: usize,
     batch: &[Value],
-    producer: &BaseProducer,
+    producer: &FutureProducer,
     topic: &str,
-) -> Result<bool> {
+) -> Result<()> {
     let start = Instant::now();
 
-    publish_batch(batch, producer, &topic)?;
+    publish_batch(batch, producer, &topic).await?;
 
     let elapsed = start.elapsed().as_millis();
 
@@ -152,9 +162,7 @@ fn handle_batch(
         batch.len(),
         elapsed,
     );
-
-    print!("(Press S to stop) ");
     print_summary(summary);
 
-    interruption_requested()
+    Ok(())
 }
