@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::utils::file_utils::list_supported_files;
+use crate::constants::{DEFAULT_BATCH_SIZE, DEFAULT_DELAY_MS};
 use std::io::{self, Write};
 
 pub fn configure(config: &mut Config) {
@@ -20,9 +21,9 @@ pub fn configure(config: &mut Config) {
 
     let file_index = ask_number("\nSelect file number", 1, 1, files.len()) - 1;
 
-    let batch_size = ask_number("Batch size", config.batch_size, 1, usize::MAX);
+    let batch_size = ask_number("Batch size", DEFAULT_BATCH_SIZE, 1, usize::MAX);
 
-    let delay_ms = ask_number("Delay between batches (ms)", config.delay_ms, 0, usize::MAX);
+    let delay_ms = ask_number("Delay between batches (ms)", DEFAULT_DELAY_MS, 0, usize::MAX);
 
     println!("\nConfiguration:");
     println!("File: {}", files[file_index].display());

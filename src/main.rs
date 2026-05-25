@@ -1,10 +1,10 @@
 mod config;
+mod constants;
 mod interface;
 mod utils;
 
 use clap::Parser;
-use anyhow::{anyhow, Result};
-use std::env;
+use anyhow::Result;
 use utils::processors::{process_csv, process_parquet};
 use utils::producer::create_kafka_producer;
 
@@ -19,20 +19,10 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    dotenvy::dotenv().ok();
+    let mut config = config::new()?;
 
-    let kafka_brokers = env::var("KAFKA_BROKERS")
-        .map_err(|_| anyhow!("KAFKA_BROKERS environment variable not set"))?;
-    
-    let kafka_topic = env::var("KAFKA_TOPIC")
-        .map_err(|_| anyhow!("KAFKA_TOPIC environment variable not set"))?;
-
-    let mut config = config::new_config(!args.no_interactive, kafka_brokers, kafka_topic);
-
-    if config.is_interactive {
+    if !args.no_interactive {
         interface::cli::configure(&mut config);
-    } else {
-        config::environmental_config(&mut config);
     }
 
     let extension = config.file_path
