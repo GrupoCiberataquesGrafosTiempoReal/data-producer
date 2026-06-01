@@ -12,7 +12,7 @@ pub struct Config {
     pub delay_ms: usize,
 }
 
-pub fn new() -> Result<Config> {
+pub fn from_environment() -> Result<Config> {
     dotenvy::dotenv().ok();
 
     let kafka_brokers = env::var("KAFKA_BROKERS")

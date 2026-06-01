@@ -19,7 +19,7 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    let mut config = config::new()?;
+    let mut config = config::from_environment()?;
 
     if !args.no_interactive {
         interface::cli::configure(&mut config);
